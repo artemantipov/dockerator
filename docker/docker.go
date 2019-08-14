@@ -50,7 +50,7 @@ func Container(action string, params string) {
 			io.Copy(os.Stdout, out)
 		}
 		for i := 0; i < replicas; i++ {
-			contName := nameWithSuffix(args[0])
+			contName := args[0]
 			resp, err := cli.ContainerCreate(ctx, &container.Config{
 				Image: imageName,
 			}, nil, nil, contName)
@@ -239,7 +239,7 @@ func PS(param string) (containers []types.Container) {
 }
 
 // NodesHealthChecks - status of "nodes"
-func NodesHealthChecks() {
+func NodesHealthChecks() (nodes []string) {
 	cli := dockerCli()
 	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{All: true})
 	if err != nil {
@@ -248,11 +248,12 @@ func NodesHealthChecks() {
 	for _, container := range containers {
 		nodeName := strings.TrimLeft(container.Names[0], "/")
 		if container.State == "running" {
-			fmt.Printf("%v node is UP\n", nodeName)
+			nodes = append(nodes, GetContainerIP(nodeName))
 		} else {
-			fmt.Printf("%v node is DOWN\n", nodeName)
+			log.Printf("%v node is DOWN\n", GetContainerIP(nodeName))
 		}
 	}
+	return
 }
 
 func nameWithSuffix(name string) (finalName string) {

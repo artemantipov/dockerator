@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/rs/xid"
@@ -25,6 +26,8 @@ type server struct{}
 func main() {
 	defer db.Close()
 	go grpcServerStart()
+	go taskToQueueLoop()
+	launchService("BlaBlaBla", "nginx:alpine", 3)
 	for {
 		time.Sleep(5 * time.Second)
 	}
@@ -63,8 +66,10 @@ func checkByNode(node string, service string, state string) (command string, par
 }
 
 func checkForTask(node string) (job string, params string) {
-	job = "nojob"
-	params = "noparams"
+	job, params = getTaskFromQueue(node)
+	if job != "nojob" {
+		fmt.Println(kv.GetKV(db, node))
+	}
 	return
 }
 
@@ -80,12 +85,23 @@ func grpcServerStart() {
 	}
 }
 
-func launchService(name, image string, rs int) {
+// func nodesCheckLoop() {
+// 	for {
+// 		runningNodes := docker.NodesHealthChecks()
+// 		nodes, _ := kv.GetKV(db, "Nodes")
+// 		nodesDesired := strings.Split(nodes, " ")
+// 	}
+// }
+
+func launchService(name, image string, rs int) (tasks []string) {
 	kv.AppendKV(db, "Services", name)
-	taskParam := fmt.Sprintf("%v %v %v %v", "create", nameWithSuffix(name), image, 1)
 	for i := 0; i < rs; i++ {
-		kv.PutKV(db, nameWithSuffix("Task"), taskParam)
+		taskName := nameWithSuffix("Task")
+		taskParam := fmt.Sprintf("%v %v %v %v", "create", nameWithSuffix(name), image, 1)
+		kv.PutKV(db, taskName, taskParam)
+		tasks = append(tasks, taskName)
 	}
+	return tasks
 }
 
 func taskToQueueLoop() {
@@ -98,7 +114,28 @@ func taskToQueueLoop() {
 				kv.DeleteKV(db, v)
 			}
 		}
+		time.Sleep(5 * time.Second)
 	}
+}
+
+func getTaskFromQueue(node string) (job string, params string) {
+	if len(taskQueue) > 0 {
+		task := <-taskQueue
+		t := strings.Split(task, " ")
+		job = t[0]
+		params = strings.Join(t[1:], " ")
+		contName := t[1]
+		contParam := strings.Join(t[2:], " ")
+		svcName := contName[:len(contName)-21]
+		kv.AppendKV(db, node, contName)
+		kv.AppendKV(db, svcName, contName)
+		kv.AppendKV(db, contName, contParam)
+		return
+	}
+	log.Println("No task")
+	job = "nojob"
+	params = "noparams"
+	return
 }
 
 func nameWithSuffix(name string) (finalName string) {
