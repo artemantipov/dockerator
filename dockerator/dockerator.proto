@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package dockerator;
+
+message Request {
+    string node = 1;
+    string service = 2;
+    string state = 3;
+}
+
+message Response {
+    string command = 1;
+    string params = 2;
+    bool status = 3;
+}
+
+message TaskRequest {
+    string node = 1;
+}
+
+message TaskResponse {
+    string job = 1;
+    string params = 2;
+}
+
+service Dockerator {
+    rpc CheckWorker (Request) returns (Response) {}
+    rpc CheckForTask (TaskRequest) returns (TaskResponse) {}
+}
