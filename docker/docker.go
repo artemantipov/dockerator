@@ -35,13 +35,6 @@ func Container(action string, params string) {
 	switch action {
 	case "create":
 		imageName := args[1]
-		replicas := 1
-		if len(args) > 2 {
-			rs, err := strconv.Atoi(args[2])
-			if err == nil {
-				replicas = rs
-			}
-		}
 		if ImageExist(imageName) != true {
 			out, err := cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
 			if err != nil {
@@ -49,45 +42,35 @@ func Container(action string, params string) {
 			}
 			io.Copy(os.Stdout, out)
 		}
-		for i := 0; i < replicas; i++ {
-			contName := args[0]
-			resp, err := cli.ContainerCreate(ctx, &container.Config{
-				Image: imageName,
-			}, nil, nil, contName)
-			if err != nil {
-				log.Println(err)
-			}
-			if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
-				log.Println(err)
-			}
-			fmt.Println(resp.ID)
+		contName := args[0]
+		resp, err := cli.ContainerCreate(ctx, &container.Config{
+			Image: imageName,
+		}, nil, nil, contName)
+		if err != nil {
+			log.Println(err)
 		}
+		if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
+			log.Println(err)
+		}
+		fmt.Println(resp.ID)
 	case "recreate":
 		oldContName := args[0]
-		imageName := args[1]
-		replicas := 1
-		if len(args) > 2 {
-			rs, err := strconv.Atoi(args[2])
-			if err == nil {
-				replicas = rs
-			}
-		}
+		contName := args[1]
+		imageName := args[2]
 		if err := cli.ContainerRemove(ctx, GetContID(oldContName), types.ContainerRemoveOptions{}); err != nil {
 			log.Println(err)
 		}
-		for i := 0; i < replicas; i++ {
-			contName := nameWithSuffix(oldContName[:len(oldContName)-21])
-			resp, err := cli.ContainerCreate(ctx, &container.Config{
-				Image: imageName,
-			}, nil, nil, contName)
-			if err != nil {
-				log.Println(err)
-			}
-			if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
-				log.Println(err)
-			}
-			fmt.Println(resp.ID)
+		// contName := nameWithSuffix(oldContName[:len(oldContName)-21])
+		resp, err := cli.ContainerCreate(ctx, &container.Config{
+			Image: imageName,
+		}, nil, nil, contName)
+		if err != nil {
+			log.Println(err)
 		}
+		if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
+			log.Println(err)
+		}
+		fmt.Println(resp.ID)
 	case "delete":
 		containerName := args[0]
 		if err := cli.ContainerStop(ctx, GetContID(containerName), nil); err != nil {
@@ -99,6 +82,37 @@ func Container(action string, params string) {
 	default:
 		fmt.Println("Wrong action")
 	}
+}
+
+// GetNodeMap - get map of nodes and IP
+func GetNodeMap() (nodes map[string]string) {
+	cli := dockerCli()
+	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{All: true})
+	if err != nil {
+		log.Println(err)
+	}
+	for _, container := range containers {
+		containerName := strings.TrimLeft(container.Names[0], "/")
+		ip := GetContainerIP(containerName)
+		nodes[ip] = containerName
+	}
+	return
+}
+
+// GetContainerUptime return ID of requested container
+func GetContainerUptime(name string) (uptime string) {
+	cli := dockerCli()
+	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{})
+	if err != nil {
+		log.Println(err)
+	}
+	for _, container := range containers {
+		containerName := strings.TrimLeft(container.Names[0], "/")
+		if containerName == name {
+			uptime = container.Status
+		}
+	}
+	return
 }
 
 // GetContID return ID of requested container
@@ -118,7 +132,7 @@ func GetContID(name string) (ID string) {
 }
 
 // CheckContainer - return exact container state
-func CheckContainer(name string) {
+func CheckContainer(name string) bool {
 	cli := dockerCli()
 	containers, err := cli.ContainerList(ctx, types.ContainerListOptions{All: true})
 	if err != nil {
@@ -128,9 +142,10 @@ func CheckContainer(name string) {
 	for _, container := range containers {
 		containerName := strings.TrimLeft(container.Names[0], "/")
 		if containerName == name {
-			fmt.Printf("Container: %s\nStatus: %s\nUptime: %s\n\n", containerName, container.State, container.Status)
+			return true
 		}
 	}
+	return false
 }
 
 // CheckService - return service state
@@ -217,20 +232,12 @@ func PS(param string) (containers []types.Container) {
 		if err != nil {
 			log.Println(err)
 		}
-		// for _, container := range containers {
-		// 	fmt.Printf("%s %s %s\n", container.ID[:10], container.Image, container.State)
-		// 	fmt.Printf("%+v\n", container)
-		// }
 		return containers
 	case "up":
 		containers, err := cli.ContainerList(ctx, types.ContainerListOptions{})
 		if err != nil {
 			log.Println(err)
 		}
-		// for _, container := range containers {
-		// 	fmt.Printf("%s %s %s\n", container.ID[:10], container.Image, container.State)
-		// 	fmt.Printf("%+v\n", container)
-		// }
 		return containers
 	default:
 		fmt.Println("param must be all|up")
@@ -257,8 +264,6 @@ func NodesHealthChecks() (nodes []string) {
 }
 
 func nameWithSuffix(name string) (finalName string) {
-	// unixTime := fmt.Sprintf("%v", time.Now().UnixNano())
-	// finalName = fmt.Sprintf("%v-%v", name, unixTime)
 	id := xid.New()
 	finalName = fmt.Sprintf("%v-%v", name, id)
 	return

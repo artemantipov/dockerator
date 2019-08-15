@@ -1,6 +1,7 @@
 package kvstore
 
 import (
+	"fmt"
 	"log"
 	"strings"
 
@@ -14,7 +15,8 @@ func CountRS(db *bitcask.Bitcask, name string) (rs int) {
 		rs++
 		return nil
 	}
-	db.Scan([]byte(name), rsInc)
+	rsName := fmt.Sprintf("%v-", name)
+	db.Scan([]byte(rsName), rsInc)
 	return
 }
 
@@ -86,4 +88,18 @@ func AppendKV(db *bitcask.Bitcask, key, value string) {
 	} else {
 		PutKV(db, key, value)
 	}
+}
+
+// EjectKV - exect on of values by key
+func EjectKV(db *bitcask.Bitcask, key, value string) {
+	val, _ := GetKV(db, key)
+	values := strings.Split(val, " ")
+	restValues := []string{}
+	for _, v := range values {
+		if v != value {
+			restValues = append(restValues, v)
+		}
+	}
+	resultValues := strings.Join(restValues, " ")
+	PutKV(db, key, resultValues)
 }
