@@ -10,6 +10,9 @@ Just some docker orchestrator for fun (partly incompleted). Singlehosted - uses 
 * Dockerfile for Nodes based on docker:dind + compiled client binaries
 * Compose file to start/build nodes + prometheus + grafana (with embedded dashboard for common metrics of a cluster) + loki (logs)
 
+# Compile binaries
+* server - `CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o ./bin/server ./server/main.go`
+* client - `CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o ./bin/client ./client/main.go`
 
 
 
