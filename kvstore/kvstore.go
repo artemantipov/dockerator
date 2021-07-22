@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/prologic/bitcask"
+	"git.mills.io/prologic/bitcask"
 )
 
 // CountRS - count replicas for service
